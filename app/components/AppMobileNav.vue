@@ -101,6 +101,10 @@ watch(
             </span>
           </template>
         </nav>
+
+        <div class="border-t border-slate-200 p-4">
+          <PwaInstallButton />
+        </div>
       </aside>
     </Teleport>
   </div>

@@ -6,7 +6,7 @@ export default defineNuxtConfig({
   nitro: {
     preset: 'static'
   },
-  modules: ['@pinia/nuxt', '@nuxtjs/tailwindcss', '@nuxt/eslint'],
+  modules: ['@pinia/nuxt', '@nuxtjs/tailwindcss', '@nuxt/eslint', '@vite-pwa/nuxt'],
   css: ['~/assets/css/main.css', 'vue-toastification/dist/index.css'],
   components: [
     '~/components',
@@ -25,7 +25,8 @@ export default defineNuxtConfig({
         {
           name: 'description',
           content: 'Hệ thống quản lý máy lọc nước — theo dõi thiết bị, lõi lọc và bảo trì.'
-        }
+        },
+        { name: 'theme-color', content: '#2563eb' }
       ]
     },
     pageTransition: { name: 'page', mode: 'out-in' }
@@ -44,6 +45,51 @@ export default defineNuxtConfig({
   eslint: {
     config: {
       standalone: false
+    }
+  },
+  pwa: {
+    registerType: 'autoUpdate',
+    strategies: 'generateSW',
+    includeAssets: ['icons/pwa-192x192.png', 'icons/pwa-512x512.png'],
+    manifest: {
+      name: 'Water Purifier Management',
+      short_name: 'Water Purifier',
+      description: 'Hệ thống quản lý máy lọc nước — theo dõi thiết bị, lõi lọc và bảo trì.',
+      lang: 'vi',
+      display: 'standalone',
+      start_url: '/',
+      theme_color: '#2563eb',
+      background_color: '#f8fafc',
+      icons: [
+        {
+          src: '/icons/pwa-192x192.png',
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'any'
+        },
+        {
+          src: '/icons/pwa-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any'
+        },
+        {
+          src: '/icons/pwa-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable'
+        }
+      ]
+    },
+    workbox: {
+      navigateFallback: '/offline',
+      globPatterns: ['**/*.{js,css,html,png,svg,ico,woff,woff2,webp}']
+    },
+    client: {
+      installPrompt: false
+    },
+    devOptions: {
+      enabled: false
     }
   },
   vite: {

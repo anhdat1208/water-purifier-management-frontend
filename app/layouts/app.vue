@@ -22,7 +22,7 @@ const isMockMode = computed(() => config.public.useMockApi)
     </div>
 
     <div class="mx-auto flex w-full max-w-[1440px]">
-      <aside class="hidden w-64 shrink-0 border-r border-slate-200 bg-white px-4 py-6 lg:block">
+      <aside class="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white px-4 py-6 lg:flex">
         <div class="mb-8 flex items-center gap-3 px-2">
           <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-sm font-semibold text-white">
             WP
@@ -90,6 +90,10 @@ const isMockMode = computed(() => config.public.useMockApi)
             </span>
           </template>
         </nav>
+
+        <div class="mt-auto border-t border-slate-200 px-2 pt-4">
+          <PwaInstallButton />
+        </div>
       </aside>
 
       <div class="flex min-h-screen flex-1 flex-col">
