@@ -141,12 +141,12 @@ const replaceDescription = computed(() => {
 
 <template>
   <section class="space-y-6">
-    <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Lõi lọc</h1>
         <p class="mt-1 text-sm text-slate-500">Quản lý lõi lọc theo từng máy, theo dõi tuổi thọ và lịch thay thế.</p>
       </div>
-      <AppButton @click="openCreate">
+      <AppButton class="w-full sm:w-auto" @click="openCreate">
         <Plus class="mr-2 h-4 w-4" />
         Thêm lõi lọc
       </AppButton>
@@ -162,10 +162,10 @@ const replaceDescription = computed(() => {
           <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <AppInput v-model="search" class="pl-9" placeholder="Tìm theo tên lõi, máy lọc..." />
         </div>
-        <div class="flex flex-wrap gap-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <select
             v-model="typeFilter"
-            class="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+            class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
           >
             <option value="all">Tất cả loại</option>
             <option value="sediment">Lõi lọc thô</option>
@@ -176,7 +176,7 @@ const replaceDescription = computed(() => {
           </select>
           <select
             v-model="lifeStatusFilter"
-            class="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+            class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
           >
             <option value="all">Tất cả trạng thái</option>
             <option value="good">Tốt</option>
@@ -185,7 +185,7 @@ const replaceDescription = computed(() => {
           </select>
           <select
             v-model="purifierFilter"
-            class="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+            class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
           >
             <option value="all">Tất cả máy lọc</option>
             <option v-for="p in purifierOptions" :key="p.id" :value="p.id">

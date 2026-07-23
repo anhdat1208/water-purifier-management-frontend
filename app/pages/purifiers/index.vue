@@ -97,12 +97,12 @@ const deleteDescription = computed(() => {
 
 <template>
   <section class="space-y-6">
-    <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Máy lọc nước</h1>
         <p class="mt-1 text-sm text-slate-500">Quản lý danh sách thiết bị, trạng thái và tuổi thọ lõi lọc.</p>
       </div>
-      <AppButton @click="openCreate">
+      <AppButton class="w-full sm:w-auto" @click="openCreate">
         <Plus class="mr-2 h-4 w-4" />
         Thêm máy lọc
       </AppButton>
@@ -116,7 +116,7 @@ const deleteDescription = computed(() => {
         </div>
         <select
           v-model="statusFilter"
-          class="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+          class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200 sm:w-auto"
         >
           <option value="all">Tất cả trạng thái</option>
           <option value="active">Hoạt động</option>
