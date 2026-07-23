@@ -26,10 +26,8 @@ export function useAuth() {
         const meResponse = await repo.me()
         userStore.setCurrentUser(mapUserProfile(meResponse.data.data))
       } catch {
-        authStore.logout()
-        userStore.setCurrentUser(null)
-        toast.error('Không thể tải thông tin người dùng.')
-        return
+        // Token đã lưu — không logout; dashboard/useCurrentUser sẽ retry /me.
+        toast.error('Đăng nhập OK nhưng chưa tải được hồ sơ. Đang thử lại…')
       }
       await queryClient.invalidateQueries({ queryKey: authQueryKeys.me })
       toast.success('Đăng nhập thành công.')

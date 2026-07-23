@@ -43,38 +43,52 @@ function attachAccessToken(config: InternalAxiosRequestConfig): InternalAxiosReq
   return config
 }
 
-export default defineNuxtPlugin(() => {
-  const config = useRuntimeConfig()
-  const authStore = useAuthStore()
-  const client = axios.create({
-    baseURL: config.public.apiBaseUrl,
-    timeout: config.public.requestTimeoutMs
-  })
+function isAuthRefreshRequest(config?: InternalAxiosRequestConfig): boolean {
+  const url = config?.url ?? ''
+  return url.includes('/auth/refresh')
+}
 
-  client.interceptors.request.use(attachAccessToken)
+export default defineNuxtPlugin({
+  name: 'api',
+  setup() {
+    const config = useRuntimeConfig()
+    const authStore = useAuthStore()
+    const client = axios.create({
+      baseURL: config.public.apiBaseUrl,
+      timeout: config.public.requestTimeoutMs
+    })
 
-  client.interceptors.response.use(
-    (response) => response,
-    async (error: AxiosError) => {
-      const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
-      if (error.response?.status === 401 && !originalRequest._retry) {
-        originalRequest._retry = true
-        const newAccessToken = await refreshAccessToken(client)
-        if (newAccessToken) {
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
-          return client(originalRequest)
+    client.interceptors.request.use(attachAccessToken)
+
+    client.interceptors.response.use(
+      (response) => response,
+      async (error: AxiosError) => {
+        const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
+
+        if (
+          error.response?.status === 401 &&
+          originalRequest &&
+          !originalRequest._retry &&
+          !isAuthRefreshRequest(originalRequest)
+        ) {
+          originalRequest._retry = true
+          const newAccessToken = await refreshAccessToken(client)
+          if (newAccessToken) {
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+            return client(originalRequest)
+          }
+          authStore.logout()
+          await navigateTo('/login')
         }
-        authStore.logout()
-        await navigateTo('/login')
+
+        return Promise.reject(mapAxiosError(error))
       }
+    )
 
-      return Promise.reject(mapAxiosError(error))
-    }
-  )
-
-  return {
-    provide: {
-      apiClient: client
+    return {
+      provide: {
+        apiClient: client
+      }
     }
   }
 })
