@@ -3,6 +3,15 @@ import { useAuthRepository } from '~/repositories/auth.repository'
 import { useAuthStore } from '~/stores/auth.store'
 import { useUserStore } from '~/stores/user.store'
 
+function isUnauthorizedError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const statusCode = 'statusCode' in error ? Number((error as { statusCode?: number }).statusCode) : NaN
+  return statusCode === 401 || statusCode === 403
+}
+
 export default defineNuxtPlugin(async () => {
   const config = useRuntimeConfig()
   const authStore = useAuthStore()
@@ -31,8 +40,12 @@ export default defineNuxtPlugin(async () => {
   try {
     const response = await repo.me()
     userStore.setCurrentUser(mapUserProfile(response.data.data))
-  } catch {
-    authStore.logout()
-    userStore.setCurrentUser(null)
+  } catch (error) {
+    // Chỉ clear session khi auth thật sự fail.
+    // Timeout / mạng / cold start: giữ token để trang retry.
+    if (isUnauthorizedError(error)) {
+      authStore.logout()
+      userStore.setCurrentUser(null)
+    }
   }
 })

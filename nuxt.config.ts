@@ -42,7 +42,8 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000/api/v1',
-      requestTimeoutMs: Number(process.env.NUXT_PUBLIC_REQUEST_TIMEOUT_MS ?? 15000),
+      // Vercel serverless cold start có thể >15s; 30s giảm login/F5 timeout ảo.
+      requestTimeoutMs: Number(process.env.NUXT_PUBLIC_REQUEST_TIMEOUT_MS ?? 30000),
       useMockApi: process.env.NUXT_PUBLIC_USE_MOCK_API === 'true'
     }
   },

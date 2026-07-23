@@ -43,6 +43,12 @@ function attachAccessToken(config: InternalAxiosRequestConfig): InternalAxiosReq
   return config
 }
 
+function isAuthRefreshRequest(config?: InternalAxiosRequestConfig): boolean {
+  const url = config?.url ?? ''
+  return url.includes('/auth/refresh')
+}
+
+// File name `00.api.ts` ensures this loads before `auth-init.client.ts`.
 export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig()
   const authStore = useAuthStore()
@@ -57,7 +63,13 @@ export default defineNuxtPlugin(() => {
     (response) => response,
     async (error: AxiosError) => {
       const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
-      if (error.response?.status === 401 && !originalRequest._retry) {
+
+      if (
+        error.response?.status === 401 &&
+        originalRequest &&
+        !originalRequest._retry &&
+        !isAuthRefreshRequest(originalRequest)
+      ) {
         originalRequest._retry = true
         const newAccessToken = await refreshAccessToken(client)
         if (newAccessToken) {
