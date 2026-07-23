@@ -48,47 +48,45 @@ function isAuthRefreshRequest(config?: InternalAxiosRequestConfig): boolean {
   return url.includes('/auth/refresh')
 }
 
-export default defineNuxtPlugin({
-  name: 'api',
-  setup() {
-    const config = useRuntimeConfig()
-    const authStore = useAuthStore()
-    const client = axios.create({
-      baseURL: config.public.apiBaseUrl,
-      timeout: config.public.requestTimeoutMs
-    })
+// File name `00.api.ts` ensures this loads before `auth-init.client.ts`.
+export default defineNuxtPlugin(() => {
+  const config = useRuntimeConfig()
+  const authStore = useAuthStore()
+  const client = axios.create({
+    baseURL: config.public.apiBaseUrl,
+    timeout: config.public.requestTimeoutMs
+  })
 
-    client.interceptors.request.use(attachAccessToken)
+  client.interceptors.request.use(attachAccessToken)
 
-    client.interceptors.response.use(
-      (response) => response,
-      async (error: AxiosError) => {
-        const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
+  client.interceptors.response.use(
+    (response) => response,
+    async (error: AxiosError) => {
+      const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
-        if (
-          error.response?.status === 401 &&
-          originalRequest &&
-          !originalRequest._retry &&
-          !isAuthRefreshRequest(originalRequest)
-        ) {
-          originalRequest._retry = true
-          const newAccessToken = await refreshAccessToken(client)
-          if (newAccessToken) {
-            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
-            return client(originalRequest)
-          }
-          authStore.logout()
-          await navigateTo('/login')
+      if (
+        error.response?.status === 401 &&
+        originalRequest &&
+        !originalRequest._retry &&
+        !isAuthRefreshRequest(originalRequest)
+      ) {
+        originalRequest._retry = true
+        const newAccessToken = await refreshAccessToken(client)
+        if (newAccessToken) {
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+          return client(originalRequest)
         }
-
-        return Promise.reject(mapAxiosError(error))
+        authStore.logout()
+        await navigateTo('/login')
       }
-    )
 
-    return {
-      provide: {
-        apiClient: client
-      }
+      return Promise.reject(mapAxiosError(error))
+    }
+  )
+
+  return {
+    provide: {
+      apiClient: client
     }
   }
 })

@@ -12,44 +12,40 @@ function isUnauthorizedError(error: unknown): boolean {
   return statusCode === 401 || statusCode === 403
 }
 
-export default defineNuxtPlugin({
-  name: 'auth-init',
-  dependsOn: ['api'],
-  async setup() {
-    const config = useRuntimeConfig()
-    const authStore = useAuthStore()
-    const userStore = useUserStore()
+export default defineNuxtPlugin(async () => {
+  const config = useRuntimeConfig()
+  const authStore = useAuthStore()
+  const userStore = useUserStore()
 
-    if (config.public.useMockApi) {
-      authStore.setAuthenticated({
-        accessToken: 'mock-access-token',
-        refreshToken: 'mock-refresh-token'
-      })
-      userStore.setCurrentUser({
-        id: 'demo-admin',
-        email: 'admin@waterpurifier.local',
-        fullName: 'Quản trị viên Demo',
-        role: 'admin'
-      })
-      return
-    }
+  if (config.public.useMockApi) {
+    authStore.setAuthenticated({
+      accessToken: 'mock-access-token',
+      refreshToken: 'mock-refresh-token'
+    })
+    userStore.setCurrentUser({
+      id: 'demo-admin',
+      email: 'admin@waterpurifier.local',
+      fullName: 'Quản trị viên Demo',
+      role: 'admin'
+    })
+    return
+  }
 
-    if (!authStore.isAuthenticated) {
-      return
-    }
+  if (!authStore.isAuthenticated) {
+    return
+  }
 
-    const repo = useAuthRepository()
+  const repo = useAuthRepository()
 
-    try {
-      const response = await repo.me()
-      userStore.setCurrentUser(mapUserProfile(response.data.data))
-    } catch (error) {
-      // Chỉ clear session khi auth thật sự fail.
-      // Timeout / mạng / cold start: giữ token để trang retry.
-      if (isUnauthorizedError(error)) {
-        authStore.logout()
-        userStore.setCurrentUser(null)
-      }
+  try {
+    const response = await repo.me()
+    userStore.setCurrentUser(mapUserProfile(response.data.data))
+  } catch (error) {
+    // Chỉ clear session khi auth thật sự fail.
+    // Timeout / mạng / cold start: giữ token để trang retry.
+    if (isUnauthorizedError(error)) {
+      authStore.logout()
+      userStore.setCurrentUser(null)
     }
   }
 })
