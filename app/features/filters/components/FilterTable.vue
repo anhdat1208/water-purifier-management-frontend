@@ -26,47 +26,45 @@ function formatDate(value: string) {
 </script>
 
 <template>
-  <AppTable>
-    <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
-      <tr>
-        <th class="px-4 py-3 font-medium">Tên lõi lọc</th>
-        <th class="px-4 py-3 font-medium">Loại</th>
-        <th class="px-4 py-3 font-medium">Máy lọc</th>
-        <th class="px-4 py-3 font-medium">Cấp</th>
-        <th class="px-4 py-3 font-medium">Tuổi thọ</th>
-        <th class="px-4 py-3 font-medium">Trạng thái</th>
-        <th class="px-4 py-3 font-medium">Thay gần nhất</th>
-        <th class="px-4 py-3 text-right font-medium">Thao tác</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr v-if="loading">
-        <td colspan="8" class="px-4 py-8 text-center text-slate-500">Đang tải danh sách...</td>
-      </tr>
-      <tr v-for="item in items" :key="item.id" class="border-b border-slate-100 last:border-0">
-        <td class="px-4 py-4">
-          <NuxtLink :to="`/filters/${item.id}`" class="font-medium text-slate-900 hover:text-brand-600">
-            {{ item.name }}
-          </NuxtLink>
-        </td>
-        <td class="px-4 py-4">
-          <FilterTypeBadge :type="item.type" />
-        </td>
-        <td class="px-4 py-4 text-slate-600">
-          <NuxtLink :to="`/purifiers/${item.purifierId}`" class="hover:text-brand-600">
-            {{ item.purifierName }}
-          </NuxtLink>
-        </td>
-        <td class="px-4 py-4 text-slate-600">{{ item.stage }}</td>
-        <td class="px-4 py-4 min-w-[140px]">
-          <PurifierFilterLifeBar :value="item.lifePercent" />
-        </td>
-        <td class="px-4 py-4">
-          <FilterLifeStatusBadge :life-percent="item.lifePercent" />
-        </td>
-        <td class="px-4 py-4 text-slate-600">{{ formatDate(item.lastReplacedDate) }}</td>
-        <td class="px-4 py-4">
-          <div class="flex justify-end gap-2">
+  <div>
+    <p v-if="loading" class="py-8 text-center text-sm text-slate-500">Đang tải danh sách...</p>
+
+    <template v-else>
+      <!-- Mobile: card list -->
+      <ul class="space-y-3 md:hidden">
+        <li
+          v-for="item in items"
+          :key="item.id"
+          class="rounded-2xl border border-slate-200 bg-white p-4"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              <NuxtLink
+                :to="`/filters/${item.id}`"
+                class="block truncate font-medium text-slate-900 hover:text-brand-600"
+              >
+                {{ item.name }}
+              </NuxtLink>
+              <NuxtLink
+                :to="`/purifiers/${item.purifierId}`"
+                class="mt-1 block truncate text-sm text-slate-500 hover:text-brand-600"
+              >
+                {{ item.purifierName }} · Cấp {{ item.stage }}
+              </NuxtLink>
+            </div>
+            <FilterTypeBadge :type="item.type" />
+          </div>
+
+          <div class="mt-3 flex items-center justify-between gap-3">
+            <FilterLifeStatusBadge :life-percent="item.lifePercent" />
+            <p class="text-xs text-slate-500">Thay: {{ formatDate(item.lastReplacedDate) }}</p>
+          </div>
+
+          <div class="mt-3">
+            <PurifierFilterLifeBar :value="item.lifePercent" />
+          </div>
+
+          <div class="mt-3 flex justify-end gap-2 border-t border-slate-100 pt-3">
             <button
               type="button"
               class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-600 transition hover:bg-emerald-50"
@@ -92,8 +90,79 @@ function formatDate(value: string) {
               <Trash2 class="h-4 w-4" />
             </button>
           </div>
-        </td>
-      </tr>
-    </tbody>
-  </AppTable>
+        </li>
+      </ul>
+
+      <!-- Desktop: table -->
+      <div class="hidden md:block">
+        <AppTable>
+          <thead class="border-b border-slate-200 bg-slate-50 text-slate-600">
+            <tr>
+              <th class="px-4 py-3 font-medium">Tên lõi lọc</th>
+              <th class="px-4 py-3 font-medium">Loại</th>
+              <th class="px-4 py-3 font-medium">Máy lọc</th>
+              <th class="px-4 py-3 font-medium">Cấp</th>
+              <th class="px-4 py-3 font-medium">Tuổi thọ</th>
+              <th class="px-4 py-3 font-medium">Trạng thái</th>
+              <th class="px-4 py-3 font-medium">Thay gần nhất</th>
+              <th class="px-4 py-3 text-right font-medium">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in items" :key="item.id" class="border-b border-slate-100 last:border-0">
+              <td class="px-4 py-4">
+                <NuxtLink :to="`/filters/${item.id}`" class="font-medium text-slate-900 hover:text-brand-600">
+                  {{ item.name }}
+                </NuxtLink>
+              </td>
+              <td class="px-4 py-4">
+                <FilterTypeBadge :type="item.type" />
+              </td>
+              <td class="px-4 py-4 text-slate-600">
+                <NuxtLink :to="`/purifiers/${item.purifierId}`" class="hover:text-brand-600">
+                  {{ item.purifierName }}
+                </NuxtLink>
+              </td>
+              <td class="px-4 py-4 text-slate-600">{{ item.stage }}</td>
+              <td class="px-4 py-4 min-w-[140px]">
+                <PurifierFilterLifeBar :value="item.lifePercent" />
+              </td>
+              <td class="px-4 py-4">
+                <FilterLifeStatusBadge :life-percent="item.lifePercent" />
+              </td>
+              <td class="px-4 py-4 text-slate-600">{{ formatDate(item.lastReplacedDate) }}</td>
+              <td class="px-4 py-4">
+                <div class="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-600 transition hover:bg-emerald-50"
+                    title="Ghi nhận thay lõi"
+                    @click="emit('replace', item)"
+                  >
+                    <RefreshCw class="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+                    title="Chỉnh sửa"
+                    @click="emit('edit', item)"
+                  >
+                    <Pencil class="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"
+                    title="Xóa"
+                    @click="emit('delete', item)"
+                  >
+                    <Trash2 class="h-4 w-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </AppTable>
+      </div>
+    </template>
+  </div>
 </template>
