@@ -2,7 +2,10 @@
 import { Plus, Search } from '@lucide/vue'
 import { refDebounced } from '@vueuse/core'
 import type { Purifier, PurifierStatus } from '~/features/purifiers/types/purifier'
-import type { PurifierFormValues } from '~/features/purifiers/schemas/purifier.schema'
+import {
+  toPurifierCreateInput,
+  type PurifierFormValues
+} from '~/features/purifiers/schemas/purifier.schema'
 import { usePurifierList, usePurifierMutations } from '~/features/purifiers/composables/usePurifiers'
 
 definePageMeta({
@@ -67,10 +70,10 @@ async function handleSubmit(values: PurifierFormValues) {
   if (editingPurifier.value) {
     await updateMutation.mutateAsync({
       id: editingPurifier.value.id,
-      input: values
+      input: { name: values.name, model: values.model }
     })
   } else {
-    await createMutation.mutateAsync(values)
+    await createMutation.mutateAsync(toPurifierCreateInput(values))
   }
   formOpen.value = false
 }

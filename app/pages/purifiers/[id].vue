@@ -26,7 +26,7 @@ function formatDate(value: string) {
 async function handleSubmit(values: PurifierFormValues) {
   await updateMutation.mutateAsync({
     id: purifierId.value,
-    input: values
+    input: { name: values.name, model: values.model }
   })
   formOpen.value = false
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { FilterCreateInput } from '~/features/filters/types/filter'
 
 export const filterFormSchema = z.object({
   name: z
@@ -13,21 +14,27 @@ export const filterFormSchema = z.object({
     .number({ required_error: 'Vui lòng nhập cấp lọc.' })
     .min(1, 'Cấp lọc tối thiểu là 1.')
     .max(10, 'Cấp lọc tối đa là 10.'),
-  lifePercent: z.coerce
-    .number({ required_error: 'Vui lòng nhập % tuổi thọ.' })
-    .min(0, 'Giá trị tối thiểu là 0.')
-    .max(100, 'Giá trị tối đa là 100.'),
   lifespanDays: z.coerce
     .number({ required_error: 'Vui lòng nhập tuổi thọ (ngày).' })
     .min(30, 'Tuổi thọ tối thiểu 30 ngày.')
     .max(730, 'Tuổi thọ tối đa 730 ngày.'),
-  installedDate: z
-    .string({ required_error: 'Vui lòng chọn ngày lắp đặt.' })
-    .min(1, 'Vui lòng chọn ngày lắp đặt.'),
-  lastReplacedDate: z
-    .string({ required_error: 'Vui lòng chọn ngày thay gần nhất.' })
-    .min(1, 'Vui lòng chọn ngày thay gần nhất.'),
   notes: z.string().max(500, 'Ghi chú tối đa 500 ký tự.').optional()
 })
 
 export type FilterFormValues = z.infer<typeof filterFormSchema>
+
+/** Gắn giá trị mặc định cho các field ẩn trên form khi tạo mới. */
+export function toFilterCreateInput(values: FilterFormValues): FilterCreateInput {
+  const today = new Date().toISOString().slice(0, 10)
+  return {
+    name: values.name,
+    type: values.type,
+    purifierId: values.purifierId,
+    stage: values.stage,
+    lifespanDays: values.lifespanDays,
+    notes: values.notes,
+    lifePercent: 100,
+    installedDate: today,
+    lastReplacedDate: today
+  }
+}

@@ -28,7 +28,14 @@ function formatDate(value: string) {
 async function handleSubmit(values: FilterFormValues) {
   await updateMutation.mutateAsync({
     id: filterId.value,
-    input: values
+    input: {
+      name: values.name,
+      type: values.type,
+      purifierId: values.purifierId,
+      stage: values.stage,
+      lifespanDays: values.lifespanDays,
+      notes: values.notes
+    }
   })
   formOpen.value = false
 }

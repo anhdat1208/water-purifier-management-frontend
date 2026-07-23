@@ -28,10 +28,6 @@ const { handleSubmit, defineField, errors, resetForm } = useForm({
 
 const [name, nameAttrs] = defineField('name')
 const [model, modelAttrs] = defineField('model')
-const [location, locationAttrs] = defineField('location')
-const [installDate, installDateAttrs] = defineField('installDate')
-const [status, statusAttrs] = defineField('status')
-const [filterLifePercent, filterLifePercentAttrs] = defineField('filterLifePercent')
 
 watch(
   () => [props.open, props.purifier] as const,
@@ -41,19 +37,11 @@ watch(
       values: purifier
         ? {
             name: purifier.name,
-            model: purifier.model,
-            location: purifier.location,
-            installDate: purifier.installDate,
-            status: purifier.status,
-            filterLifePercent: purifier.filterLifePercent
+            model: purifier.model
           }
         : {
             name: '',
-            model: '',
-            location: '',
-            installDate: '',
-            status: 'active',
-            filterLifePercent: 100
+            model: ''
           }
     })
   },
@@ -92,52 +80,6 @@ const onSubmit = handleSubmit((values) => {
         placeholder="RO-500"
         :error="errors.model"
         :disabled="loading"
-      />
-      <AuthFormField
-        id="purifier-location"
-        v-model="location"
-        v-bind="locationAttrs"
-        label="Vị trí"
-        placeholder="Phòng khách"
-        :error="errors.location"
-        :disabled="loading"
-      />
-      <AuthFormField
-        id="purifier-install-date"
-        v-model="installDate"
-        v-bind="installDateAttrs"
-        label="Ngày lắp đặt"
-        type="date"
-        :error="errors.installDate"
-        :disabled="loading"
-      />
-
-      <div class="space-y-1.5">
-        <label for="purifier-status" class="block text-sm font-medium text-slate-700">Trạng thái</label>
-        <select
-          id="purifier-status"
-          v-model="status"
-          v-bind="statusAttrs"
-          class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
-          :disabled="loading"
-        >
-          <option value="active">Hoạt động</option>
-          <option value="maintenance">Bảo trì</option>
-          <option value="inactive">Ngưng</option>
-        </select>
-        <p v-if="errors.status" class="text-xs text-red-500">{{ errors.status }}</p>
-      </div>
-
-      <AuthFormField
-        id="purifier-filter-life"
-        :model-value="String(filterLifePercent ?? '')"
-        v-bind="filterLifePercentAttrs"
-        label="Tuổi thọ lõi lọc (%)"
-        type="number"
-        placeholder="100"
-        :error="errors.filterLifePercent"
-        :disabled="loading"
-        @update:model-value="filterLifePercent = Number($event)"
       />
 
       <div class="flex justify-end gap-2 pt-2">
