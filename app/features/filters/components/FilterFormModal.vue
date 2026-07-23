@@ -37,10 +37,7 @@ const [name, nameAttrs] = defineField('name')
 const [type, typeAttrs] = defineField('type')
 const [purifierId, purifierIdAttrs] = defineField('purifierId')
 const [stage, stageAttrs] = defineField('stage')
-const [lifePercent, lifePercentAttrs] = defineField('lifePercent')
 const [lifespanDays, lifespanDaysAttrs] = defineField('lifespanDays')
-const [installedDate, installedDateAttrs] = defineField('installedDate')
-const [lastReplacedDate, lastReplacedDateAttrs] = defineField('lastReplacedDate')
 const [notes, notesAttrs] = defineField('notes')
 
 watch(
@@ -54,10 +51,7 @@ watch(
             type: filter.type,
             purifierId: filter.purifierId,
             stage: filter.stage,
-            lifePercent: filter.lifePercent,
             lifespanDays: filter.lifespanDays,
-            installedDate: filter.installedDate,
-            lastReplacedDate: filter.lastReplacedDate,
             notes: filter.notes ?? ''
           }
         : {
@@ -65,10 +59,7 @@ watch(
             type: 'sediment',
             purifierId: '',
             stage: 1,
-            lifePercent: 100,
             lifespanDays: 180,
-            installedDate: '',
-            lastReplacedDate: '',
             notes: ''
           }
     })
@@ -156,39 +147,6 @@ const onSubmit = handleSubmit((values) => {
           :error="errors.lifespanDays"
           :disabled="loading"
           @update:model-value="lifespanDays = Number($event)"
-        />
-      </div>
-
-      <AuthFormField
-        id="filter-life-percent"
-        :model-value="String(lifePercent ?? '')"
-        v-bind="lifePercentAttrs"
-        label="Tuổi thọ còn lại (%)"
-        type="number"
-        placeholder="100"
-        :error="errors.lifePercent"
-        :disabled="loading"
-        @update:model-value="lifePercent = Number($event)"
-      />
-
-      <div class="grid gap-4 sm:grid-cols-2">
-        <AuthFormField
-          id="filter-installed-date"
-          v-model="installedDate"
-          v-bind="installedDateAttrs"
-          label="Ngày lắp đặt"
-          type="date"
-          :error="errors.installedDate"
-          :disabled="loading"
-        />
-        <AuthFormField
-          id="filter-last-replaced"
-          v-model="lastReplacedDate"
-          v-bind="lastReplacedDateAttrs"
-          label="Ngày thay gần nhất"
-          type="date"
-          :error="errors.lastReplacedDate"
-          :disabled="loading"
         />
       </div>
 

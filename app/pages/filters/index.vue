@@ -3,7 +3,10 @@ import { Plus, Search } from '@lucide/vue'
 import { refDebounced } from '@vueuse/core'
 import { getFilterLifeStatus } from '~/features/filters/constants/filter-labels'
 import type { Filter, FilterLifeStatus, FilterType } from '~/features/filters/types/filter'
-import type { FilterFormValues } from '~/features/filters/schemas/filter.schema'
+import {
+  toFilterCreateInput,
+  type FilterFormValues
+} from '~/features/filters/schemas/filter.schema'
 import { useFilterList, useFilterMutations } from '~/features/filters/composables/useFilters'
 
 definePageMeta({
@@ -92,10 +95,17 @@ async function handleSubmit(values: FilterFormValues) {
   if (editingFilter.value) {
     await updateMutation.mutateAsync({
       id: editingFilter.value.id,
-      input: values
+      input: {
+        name: values.name,
+        type: values.type,
+        purifierId: values.purifierId,
+        stage: values.stage,
+        lifespanDays: values.lifespanDays,
+        notes: values.notes
+      }
     })
   } else {
-    await createMutation.mutateAsync(values)
+    await createMutation.mutateAsync(toFilterCreateInput(values))
   }
   formOpen.value = false
 }
