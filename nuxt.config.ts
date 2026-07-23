@@ -26,7 +26,15 @@ export default defineNuxtConfig({
           name: 'description',
           content: 'Hệ thống quản lý máy lọc nước — theo dõi thiết bị, lõi lọc và bảo trì.'
         },
-        { name: 'theme-color', content: '#2563eb' }
+        { name: 'theme-color', content: '#2563eb' },
+        { name: 'mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-status-bar-style', content: 'default' }
+      ],
+      link: [
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+        { rel: 'icon', href: '/icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+        { rel: 'apple-touch-icon', href: '/icons/pwa-192x192.png', sizes: '192x192' }
       ]
     },
     pageTransition: { name: 'page', mode: 'out-in' }
