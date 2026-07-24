@@ -92,7 +92,8 @@ export default defineNuxtConfig({
     },
     workbox: {
       navigateFallback: '/offline',
-      globPatterns: ['**/*.{js,css,html,png,svg,ico,woff,woff2,webp}']
+      globPatterns: ['**/*.{js,css,html,png,svg,ico,woff,woff2,webp}'],
+      importScripts: ['/push-sw.js']
     },
     client: {
       installPrompt: false

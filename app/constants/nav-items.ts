@@ -22,7 +22,7 @@ export const mainNavItems: NavItem[] = [
   { label: 'Máy lọc nước', to: '/purifiers', icon: Droplets },
   { label: 'Lõi lọc', to: '/filters', icon: Filter },
   { label: 'Lịch sử thay lõi', to: '/replacement-history', icon: History, disabled: true },
-  { label: 'Thông báo', to: '/notifications', icon: Bell, disabled: true },
+  { label: 'Thông báo', to: '/notifications', icon: Bell },
   { label: 'Trợ lý AI', to: '/ai-assistant', icon: Bot },
 ]
 

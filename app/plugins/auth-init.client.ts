@@ -1,4 +1,5 @@
 import { mapUserProfile } from '~/services/auth-mapper.service'
+import { useWebPush } from '~/composables/useWebPush'
 import { useAuthRepository } from '~/repositories/auth.repository'
 import { useAuthStore } from '~/stores/auth.store'
 import { useUserStore } from '~/stores/user.store'
@@ -40,6 +41,7 @@ export default defineNuxtPlugin(async () => {
   try {
     const response = await repo.me()
     userStore.setCurrentUser(mapUserProfile(response.data.data))
+    void useWebPush().ensureSubscribed()
   } catch (error) {
     // Chỉ clear session khi auth thật sự fail.
     // Timeout / mạng / cold start: giữ token để trang retry.
