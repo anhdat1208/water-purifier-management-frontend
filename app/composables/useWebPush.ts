@@ -56,7 +56,31 @@ export function useWebPush() {
   const toast = useAppToast()
   const { getErrorMessage: getApiErrorMessage } = useApiError()
 
-  async function ensureSubscribed(): Promise<void> {
+  function getPushSupportMessage(): string | null {
+    if (!import.meta.client) {
+      return null
+    }
+    if (config.public.useMockApi) {
+      return 'Mock API đang bật — không đăng ký push thật.'
+    }
+    if (typeof Notification === 'undefined') {
+      return 'Trình duyệt không hỗ trợ Notification API.'
+    }
+    if (typeof PushManager === 'undefined') {
+      return 'Trình duyệt không hỗ trợ Web Push (PushManager).'
+    }
+    if (!navigator.serviceWorker) {
+      return 'Trình duyệt không hỗ trợ Service Worker (cần HTTPS hoặc localhost).'
+    }
+    if (Notification.permission === 'denied') {
+      return 'Bạn đã tắt quyền thông báo. Hãy bật lại trong cài đặt trình duyệt.'
+    }
+    return null
+  }
+
+  async function ensureSubscribed(options?: { interactive?: boolean }): Promise<boolean> {
+    const interactive = options?.interactive ?? false
+
     if (
       config.public.useMockApi ||
       !import.meta.client ||
@@ -64,7 +88,10 @@ export function useWebPush() {
       typeof PushManager === 'undefined' ||
       !navigator.serviceWorker
     ) {
-      return
+      if (interactive) {
+        toast.error(getPushSupportMessage() ?? 'Thiết bị không hỗ trợ thông báo đẩy.')
+      }
+      return false
     }
 
     try {
@@ -72,7 +99,10 @@ export function useWebPush() {
         Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission
 
       if (permission !== 'granted') {
-        return
+        if (interactive) {
+          toast.error('Bạn cần cho phép thông báo để nhận nhắc thay lõi trên điện thoại.')
+        }
+        return false
       }
 
       const registration = await waitForServiceWorkerRegistration()
@@ -107,13 +137,15 @@ export function useWebPush() {
 
       localStorage.setItem(PUSH_ENDPOINT_STORAGE_KEY, subscription.endpoint)
 
-      if (!sessionStorage.getItem(PUSH_TOAST_SESSION_KEY)) {
+      if (interactive || !sessionStorage.getItem(PUSH_TOAST_SESSION_KEY)) {
         sessionStorage.setItem(PUSH_TOAST_SESSION_KEY, '1')
         toast.success('Đã bật nhắc thay lõi trên thiết bị này.')
       }
+      return true
     } catch (error) {
       console.warn('[web-push] ensureSubscribed failed:', error)
       toast.error(`Không đăng ký được thông báo đẩy: ${getApiErrorMessage(error, getErrorMessage(error))}`)
+      return false
     }
   }
 
@@ -143,6 +175,7 @@ export function useWebPush() {
 
   return {
     ensureSubscribed,
-    unsubscribeCurrent
+    unsubscribeCurrent,
+    getPushSupportMessage
   }
 }

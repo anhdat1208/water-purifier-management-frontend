@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { CheckCheck, ChevronRight } from '@lucide/vue'
+import { BellRing, CheckCheck, ChevronRight } from '@lucide/vue'
 import type { Notification } from '~/features/notifications/types/notification'
 import { useNotificationMutations, useNotifications } from '~/features/notifications/composables/useNotifications'
+import { useWebPush } from '~/composables/useWebPush'
 
 definePageMeta({
   layout: 'app',
@@ -9,8 +10,10 @@ definePageMeta({
 })
 
 const page = ref(1)
+const enablingPush = ref(false)
 const { data, isLoading, isError, isFetching, refetch } = useNotifications(page)
 const { markReadMutation, markAllReadMutation } = useNotificationMutations()
+const { ensureSubscribed, getPushSupportMessage } = useWebPush()
 
 const notifications = computed(() => data.value?.items ?? [])
 const unreadCount = computed(() => data.value?.unreadCount ?? 0)
@@ -18,6 +21,19 @@ const totalPages = computed(() => Math.max(1, Math.ceil((data.value?.total ?? 0)
 const notificationPermissionDenied = computed(
   () => import.meta.client && typeof Notification !== 'undefined' && Notification.permission === 'denied'
 )
+const pushSupportMessage = computed(() => (import.meta.client ? getPushSupportMessage() : null))
+const browserPermission = computed(() =>
+  import.meta.client && typeof Notification !== 'undefined' ? Notification.permission : 'default'
+)
+
+async function enablePushNotifications() {
+  enablingPush.value = true
+  try {
+    await ensureSubscribed({ interactive: true })
+  } finally {
+    enablingPush.value = false
+  }
+}
 
 function formatRelativeTime(value: string) {
   const date = new Date(value)
@@ -63,23 +79,42 @@ function openNotification(notification: Notification) {
         </div>
         <p class="mt-1 text-sm text-slate-500">Theo dõi các nhắc nhở thay lõi lọc của bạn.</p>
       </div>
-      <AppButton
-        v-if="unreadCount > 0"
-        class="w-full sm:w-auto"
-        :loading="markAllReadMutation.isPending.value"
-        @click="markAllReadMutation.mutate()"
-      >
-        <CheckCheck class="mr-2 h-4 w-4" />
-        Đánh dấu tất cả đã đọc
-      </AppButton>
+      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+        <AppButton class="w-full sm:w-auto" :loading="enablingPush" @click="enablePushNotifications">
+          <BellRing class="mr-2 h-4 w-4" />
+          Bật thông báo đẩy
+        </AppButton>
+        <AppButton
+          v-if="unreadCount > 0"
+          class="w-full sm:w-auto"
+          :loading="markAllReadMutation.isPending.value"
+          @click="markAllReadMutation.mutate()"
+        >
+          <CheckCheck class="mr-2 h-4 w-4" />
+          Đánh dấu tất cả đã đọc
+        </AppButton>
+      </div>
     </div>
 
     <div
-      v-if="notificationPermissionDenied"
+      v-if="notificationPermissionDenied || pushSupportMessage"
       class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
     >
-      Bạn đã tắt quyền thông báo trên trình duyệt. Hãy bật lại quyền thông báo trong cài đặt trình duyệt để nhận nhắc
-      thay lõi.
+      <p v-if="notificationPermissionDenied">
+        Bạn đã tắt quyền thông báo trên trình duyệt. Hãy bật lại quyền thông báo trong cài đặt trình duyệt để nhận nhắc
+        thay lõi.
+      </p>
+      <p v-else>{{ pushSupportMessage }}</p>
+    </div>
+
+    <div
+      v-else
+      class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600"
+    >
+      Banner Android chỉ hiện khi thiết bị đã đăng ký vào
+      <code class="rounded bg-white px-1">push_subscriptions</code>.
+      Bấm <span class="font-medium">Bật thông báo đẩy</span>
+      (quyền hiện tại: <span class="font-medium">{{ browserPermission }}</span>) rồi đợi toast thành công.
     </div>
 
     <AppCard class="space-y-4">
