@@ -1,4 +1,5 @@
 import type { Filter, FilterCreateInput, FilterUpdateInput } from '~/features/filters/types/filter'
+import { computeFilterLifePercent, localDateString } from '~/features/filters/utils/filter-life'
 
 let nextId = 16
 
@@ -201,15 +202,22 @@ function resolvePurifierName(purifierId: string): string {
   return purifierNames[purifierId] ?? `Máy lọc #${purifierId}`
 }
 
+function withComputedLife(item: Filter): Filter {
+  return {
+    ...item,
+    lifePercent: computeFilterLifePercent(item.lastReplacedDate, item.lifespanDays)
+  }
+}
+
 export async function listMockFilters(): Promise<Filter[]> {
   await delay()
-  return store.map((item) => ({ ...item }))
+  return store.map((item) => withComputedLife(item))
 }
 
 export async function getMockFilter(id: string): Promise<Filter | null> {
   await delay()
   const item = store.find((f) => f.id === id)
-  return item ? { ...item } : null
+  return item ? withComputedLife(item) : null
 }
 
 export async function createMockFilter(input: FilterCreateInput): Promise<Filter> {
@@ -221,14 +229,14 @@ export async function createMockFilter(input: FilterCreateInput): Promise<Filter
     purifierId: input.purifierId,
     purifierName: resolvePurifierName(input.purifierId),
     stage: input.stage,
-    lifePercent: input.lifePercent,
+    lifePercent: computeFilterLifePercent(input.lastReplacedDate, input.lifespanDays),
     lifespanDays: input.lifespanDays,
     installedDate: input.installedDate,
     lastReplacedDate: input.lastReplacedDate,
     notes: input.notes
   }
   store.unshift(filter)
-  return { ...filter }
+  return withComputedLife(filter)
 }
 
 export async function updateMockFilter(id: string, input: FilterUpdateInput): Promise<Filter> {
@@ -242,6 +250,8 @@ export async function updateMockFilter(id: string, input: FilterUpdateInput): Pr
     throw new Error('Không tìm thấy lõi lọc.')
   }
   const purifierId = input.purifierId ?? current.purifierId
+  const lifespanDays = input.lifespanDays ?? current.lifespanDays
+  const lastReplacedDate = input.lastReplacedDate ?? current.lastReplacedDate
   const updated: Filter = {
     id: current.id,
     name: input.name ?? current.name,
@@ -249,14 +259,14 @@ export async function updateMockFilter(id: string, input: FilterUpdateInput): Pr
     purifierId,
     purifierName: resolvePurifierName(purifierId),
     stage: input.stage ?? current.stage,
-    lifePercent: input.lifePercent ?? current.lifePercent,
-    lifespanDays: input.lifespanDays ?? current.lifespanDays,
+    lifePercent: computeFilterLifePercent(lastReplacedDate, lifespanDays),
+    lifespanDays,
     installedDate: input.installedDate ?? current.installedDate,
-    lastReplacedDate: input.lastReplacedDate ?? current.lastReplacedDate,
+    lastReplacedDate,
     notes: input.notes ?? current.notes
   }
   store[index] = updated
-  return { ...updated }
+  return withComputedLife(updated)
 }
 
 export async function deleteMockFilter(id: string): Promise<void> {
@@ -278,10 +288,10 @@ export async function replaceMockFilter(id: string): Promise<Filter> {
   if (!current) {
     throw new Error('Không tìm thấy lõi lọc.')
   }
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDateString()
   const updated: Filter = {
     ...current,
-    lifePercent: 100,
+    lifePercent: computeFilterLifePercent(today, current.lifespanDays),
     lastReplacedDate: today
   }
   store[index] = updated
