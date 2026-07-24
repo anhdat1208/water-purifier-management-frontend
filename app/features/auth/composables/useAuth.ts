@@ -6,6 +6,7 @@ import { useAuthRepository } from '~/repositories/auth.repository'
 import { mapAuthTokens, mapUserProfile } from '~/services/auth-mapper.service'
 import { useAuthStore } from '~/stores/auth.store'
 import { useUserStore } from '~/stores/user.store'
+import { useWebPush } from '~/composables/useWebPush'
 
 export function useAuth() {
   const repo = useAuthRepository()
@@ -32,6 +33,7 @@ export function useAuth() {
       await queryClient.invalidateQueries({ queryKey: authQueryKeys.me })
       toast.success('Đăng nhập thành công.')
       await navigateTo('/dashboard')
+      void useWebPush().ensureSubscribed()
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, 'Đăng nhập thất bại.'))
@@ -70,6 +72,11 @@ export function useAuth() {
   })
 
   async function logout() {
+    try {
+      await useWebPush().unsubscribeCurrent()
+    } catch {
+      // Đăng xuất vẫn tiếp tục khi API gỡ đăng ký push không phản hồi.
+    }
     authStore.logout()
     userStore.setCurrentUser(null)
     queryClient.removeQueries({ queryKey: authQueryKeys.me })
