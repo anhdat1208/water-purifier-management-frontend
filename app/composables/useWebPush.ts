@@ -79,14 +79,20 @@ export function useWebPush() {
     }
 
     const endpoint = localStorage.getItem(PUSH_ENDPOINT_STORAGE_KEY)
-    if (!endpoint) {
-      return
-    }
-
     try {
-      await repository.unsubscribe(endpoint)
+      if (endpoint) {
+        await repository.unsubscribe(endpoint)
+      }
     } finally {
-      localStorage.removeItem(PUSH_ENDPOINT_STORAGE_KEY)
+      try {
+        const registration = await navigator.serviceWorker.ready
+        const subscription = await registration.pushManager.getSubscription()
+        await subscription?.unsubscribe()
+      } catch {
+        // Không để lỗi Push API làm gián đoạn luồng đăng xuất.
+      } finally {
+        localStorage.removeItem(PUSH_ENDPOINT_STORAGE_KEY)
+      }
     }
   }
 
