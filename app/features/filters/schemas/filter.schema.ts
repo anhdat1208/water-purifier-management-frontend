@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { FilterCreateInput } from '~/features/filters/types/filter'
+import { computeFilterLifePercent, localDateString } from '~/features/filters/utils/filter-life'
 
 export const filterFormSchema = z.object({
   name: z
@@ -25,7 +26,7 @@ export type FilterFormValues = z.infer<typeof filterFormSchema>
 
 /** Gắn giá trị mặc định cho các field ẩn trên form khi tạo mới. */
 export function toFilterCreateInput(values: FilterFormValues): FilterCreateInput {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = localDateString()
   return {
     name: values.name,
     type: values.type,
@@ -33,7 +34,7 @@ export function toFilterCreateInput(values: FilterFormValues): FilterCreateInput
     stage: values.stage,
     lifespanDays: values.lifespanDays,
     notes: values.notes,
-    lifePercent: 100,
+    lifePercent: computeFilterLifePercent(today, values.lifespanDays),
     installedDate: today,
     lastReplacedDate: today
   }

@@ -1,6 +1,9 @@
 import type { Filter, FilterApi, FilterCreateInput } from '~/features/filters/types/filter'
+import { computeFilterLifePercent } from '~/features/filters/utils/filter-life'
 
 export function mapFilter(data: FilterApi): Filter {
+  const lifespanDays = data.lifespan_days ?? data.lifespanDays ?? 180
+  const lastReplacedDate = data.last_replaced_date ?? data.lastReplacedDate ?? ''
   return {
     id: String(data.id),
     name: data.name,
@@ -8,10 +11,10 @@ export function mapFilter(data: FilterApi): Filter {
     purifierId: String(data.purifier_id ?? data.purifierId ?? ''),
     purifierName: data.purifier_name ?? data.purifierName ?? '',
     stage: data.stage,
-    lifePercent: data.life_percent ?? data.lifePercent ?? 0,
-    lifespanDays: data.lifespan_days ?? data.lifespanDays ?? 180,
+    lifePercent: computeFilterLifePercent(lastReplacedDate, lifespanDays),
+    lifespanDays,
     installedDate: data.installed_date ?? data.installedDate ?? '',
-    lastReplacedDate: data.last_replaced_date ?? data.lastReplacedDate ?? '',
+    lastReplacedDate,
     notes: data.notes
   }
 }
