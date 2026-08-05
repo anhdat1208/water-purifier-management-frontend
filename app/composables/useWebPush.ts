@@ -4,6 +4,8 @@ import { useApiError } from '~/composables/useApiError'
 
 const PUSH_ENDPOINT_STORAGE_KEY = 'wp.push.endpoint'
 const PUSH_TOAST_SESSION_KEY = 'wp.push.subscribedToast'
+const SW_READY_TIMEOUT_MS = 12_000
+const SUBSCRIBE_RETRY_DELAY_MS = 800
 
 function urlBase64ToUint8Array(base64String: string): BufferSource {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -24,26 +26,91 @@ function arrayBufferToBase64(value: ArrayBuffer | null): string | null {
   return btoa(String.fromCharCode(...new Uint8Array(value)))
 }
 
-async function waitForServiceWorkerRegistration(): Promise<ServiceWorkerRegistration> {
-  const registration = await navigator.serviceWorker.ready
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
 
-  if (navigator.serviceWorker.controller) {
-    return registration
+function isPushServiceError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false
+  }
+  const message = error.message.toLowerCase()
+  return message.includes('push service') || message.includes('registration failed')
+}
+
+async function waitForServiceWorkerRegistration(): Promise<ServiceWorkerRegistration> {
+  if (!navigator.serviceWorker.controller) {
+    // Lần đầu vào site (hoặc SW mới cài) thường chưa có controller cho tới khi reload /
+    // clients.claim. Chờ controllerchange thay vì timeout rồi vẫn subscribe.
+    try {
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          if (navigator.serviceWorker.controller) {
+            resolve()
+            return
+          }
+          navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })
+        }),
+        new Promise<void>((_, reject) => {
+          window.setTimeout(() => {
+            reject(
+              new Error(
+                'Service Worker chưa điều khiển trang. Hãy tải lại trang rồi bật lại thông báo đẩy.'
+              )
+            )
+          }, SW_READY_TIMEOUT_MS)
+        })
+      ])
+    } catch (error) {
+      // Một số trình duyệt vẫn cho subscribe khi ready + active dù chưa controller.
+      // Chỉ bỏ qua nếu registration.active đã có; không thì ném lỗi rõ.
+      const registration = await navigator.serviceWorker.getRegistration()
+      if (!registration?.active) {
+        throw error
+      }
+      console.warn('[web-push] No SW controller yet; continuing with active worker.', error)
+      return registration
+    }
   }
 
-  await Promise.race([
-    new Promise<void>((resolve) => {
-      navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true })
-    }),
-    new Promise<void>((resolve) => {
-      window.setTimeout(resolve, 4000)
-    })
-  ])
+  const registration = await navigator.serviceWorker.ready
 
-  return navigator.serviceWorker.ready
+  if (!registration.active) {
+    throw new Error('Service Worker chưa sẵn sàng. Hãy tải lại trang rồi thử lại.')
+  }
+
+  return registration
+}
+
+async function subscribePush(
+  registration: ServiceWorkerRegistration,
+  applicationServerKey: BufferSource
+): Promise<PushSubscription> {
+  try {
+    return await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey
+    })
+  } catch (error) {
+    if (!isPushServiceError(error)) {
+      throw error
+    }
+
+    // Android/Chrome đôi khi lỗi FCM tạm thời sau unsubscribe hoặc SW vừa claim.
+    await delay(SUBSCRIBE_RETRY_DELAY_MS)
+    return registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey
+    })
+  }
 }
 
 function getErrorMessage(error: unknown): string {
+  if (isPushServiceError(error)) {
+    return 'Trình duyệt không kết nối được dịch vụ đẩy (FCM). Hãy mở bằng Chrome, kiểm tra mạng/Google Play Services, tải lại trang rồi thử lại.'
+  }
   if (error instanceof Error && error.message) {
     return error.message
   }
@@ -111,16 +178,12 @@ export function useWebPush() {
         throw new Error('VAPID public key trống.')
       }
 
-      // Hủy subscription cũ (có thể gắn VAPID khác) rồi đăng ký lại để khớp key hiện tại.
-      const existing = await registration.pushManager.getSubscription()
-      if (existing) {
-        await existing.unsubscribe()
+      // Tái dùng subscription hiện có — tránh unsubscribe + subscribe lại mỗi lần
+      // (hay gây "push service error" trên Chrome Android).
+      let subscription = await registration.pushManager.getSubscription()
+      if (!subscription) {
+        subscription = await subscribePush(registration, urlBase64ToUint8Array(publicKey.trim()))
       }
-
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey.trim())
-      })
 
       const p256dh = arrayBufferToBase64(subscription.getKey('p256dh'))
       const auth = arrayBufferToBase64(subscription.getKey('auth'))
