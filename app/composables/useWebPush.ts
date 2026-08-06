@@ -7,6 +7,18 @@ const PUSH_TOAST_SESSION_KEY = 'wp.push.subscribedToast'
 const SW_READY_TIMEOUT_MS = 12_000
 const SUBSCRIBE_RETRY_DELAY_MS = 800
 
+export type PushDiagnostic = {
+  permission: NotificationPermission | 'unsupported'
+  swController: boolean
+  swActive: boolean
+  swScriptUrl: string | null
+  hasBrowserSubscription: boolean
+  endpointHint: string | null
+  standalone: boolean
+  userAgent: string
+  lastError: string | null
+}
+
 function urlBase64ToUint8Array(base64String: string): BufferSource {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -40,10 +52,16 @@ function isPushServiceError(error: unknown): boolean {
   return message.includes('push service') || message.includes('registration failed')
 }
 
+function formatPushError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error)
+  }
+  const name = 'name' in error ? String((error as { name?: string }).name) : 'Error'
+  return `${name}: ${error.message}`
+}
+
 async function waitForServiceWorkerRegistration(): Promise<ServiceWorkerRegistration> {
   if (!navigator.serviceWorker.controller) {
-    // Lần đầu vào site (hoặc SW mới cài) thường chưa có controller cho tới khi reload /
-    // clients.claim. Chờ controllerchange thay vì timeout rồi vẫn subscribe.
     try {
       await Promise.race([
         new Promise<void>((resolve) => {
@@ -64,8 +82,6 @@ async function waitForServiceWorkerRegistration(): Promise<ServiceWorkerRegistra
         })
       ])
     } catch (error) {
-      // Một số trình duyệt vẫn cho subscribe khi ready + active dù chưa controller.
-      // Chỉ bỏ qua nếu registration.active đã có; không thì ném lỗi rõ.
       const registration = await navigator.serviceWorker.getRegistration()
       if (!registration?.active) {
         throw error
@@ -98,7 +114,6 @@ async function subscribePush(
       throw error
     }
 
-    // Android/Chrome đôi khi lỗi FCM tạm thời sau unsubscribe hoặc SW vừa claim.
     await delay(SUBSCRIBE_RETRY_DELAY_MS)
     return registration.pushManager.subscribe({
       userVisibleOnly: true,
@@ -117,11 +132,26 @@ function getErrorMessage(error: unknown): string {
   return 'Lỗi không xác định'
 }
 
+function emptyDiagnostic(lastError: string | null = null): PushDiagnostic {
+  return {
+    permission: 'unsupported',
+    swController: false,
+    swActive: false,
+    swScriptUrl: null,
+    hasBrowserSubscription: false,
+    endpointHint: null,
+    standalone: false,
+    userAgent: import.meta.client ? navigator.userAgent : '',
+    lastError
+  }
+}
+
 export function useWebPush() {
   const config = useRuntimeConfig()
   const repository = usePushRepository()
   const toast = useAppToast()
   const { getErrorMessage: getApiErrorMessage } = useApiError()
+  const lastDiagnostic = useState<PushDiagnostic | null>('wp.push.diagnostic', () => null)
 
   function getPushSupportMessage(): string | null {
     if (!import.meta.client) {
@@ -145,6 +175,35 @@ export function useWebPush() {
     return null
   }
 
+  async function collectDiagnostic(lastError: string | null = null): Promise<PushDiagnostic> {
+    if (!import.meta.client || typeof Notification === 'undefined' || !navigator.serviceWorker) {
+      const diagnostic = emptyDiagnostic(lastError)
+      lastDiagnostic.value = diagnostic
+      return diagnostic
+    }
+
+    const registration = await navigator.serviceWorker.getRegistration()
+    const subscription = registration ? await registration.pushManager.getSubscription() : null
+    const displayModeStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      ('standalone' in navigator && Boolean((navigator as { standalone?: boolean }).standalone))
+
+    const diagnostic: PushDiagnostic = {
+      permission: Notification.permission,
+      swController: Boolean(navigator.serviceWorker.controller),
+      swActive: Boolean(registration?.active),
+      swScriptUrl: registration?.active?.scriptURL ?? null,
+      hasBrowserSubscription: Boolean(subscription),
+      endpointHint: subscription?.endpoint ? subscription.endpoint.slice(-48) : null,
+      standalone: displayModeStandalone,
+      userAgent: navigator.userAgent,
+      lastError
+    }
+    lastDiagnostic.value = diagnostic
+    console.info('[web-push] diagnostic', diagnostic)
+    return diagnostic
+  }
+
   async function ensureSubscribed(options?: { interactive?: boolean }): Promise<boolean> {
     const interactive = options?.interactive ?? false
 
@@ -158,6 +217,7 @@ export function useWebPush() {
       if (interactive) {
         toast.error(getPushSupportMessage() ?? 'Thiết bị không hỗ trợ thông báo đẩy.')
       }
+      await collectDiagnostic(getPushSupportMessage())
       return false
     }
 
@@ -169,6 +229,7 @@ export function useWebPush() {
         if (interactive) {
           toast.error('Bạn cần cho phép thông báo để nhận nhắc thay lõi trên điện thoại.')
         }
+        await collectDiagnostic(`permission=${permission}`)
         return false
       }
 
@@ -178,8 +239,6 @@ export function useWebPush() {
         throw new Error('VAPID public key trống.')
       }
 
-      // Tái dùng subscription hiện có — tránh unsubscribe + subscribe lại mỗi lần
-      // (hay gây "push service error" trên Chrome Android).
       let subscription = await registration.pushManager.getSubscription()
       if (!subscription) {
         subscription = await subscribePush(registration, urlBase64ToUint8Array(publicKey.trim()))
@@ -200,6 +259,8 @@ export function useWebPush() {
 
       localStorage.setItem(PUSH_ENDPOINT_STORAGE_KEY, subscription.endpoint)
 
+      await collectDiagnostic(null)
+
       if (interactive || !sessionStorage.getItem(PUSH_TOAST_SESSION_KEY)) {
         sessionStorage.setItem(PUSH_TOAST_SESSION_KEY, '1')
         toast.success('Đã bật nhắc thay lõi trên thiết bị này.')
@@ -207,7 +268,17 @@ export function useWebPush() {
       return true
     } catch (error) {
       console.warn('[web-push] ensureSubscribed failed:', error)
-      toast.error(`Không đăng ký được thông báo đẩy: ${getApiErrorMessage(error, getErrorMessage(error))}`)
+      const diagnostic = await collectDiagnostic(formatPushError(error))
+      const detail = getApiErrorMessage(error, getErrorMessage(error))
+      toast.error(`Không đăng ký được thông báo đẩy: ${detail}`)
+      if (interactive) {
+        console.warn('[web-push] fail context', {
+          swController: diagnostic.swController,
+          swActive: diagnostic.swActive,
+          hasBrowserSubscription: diagnostic.hasBrowserSubscription,
+          standalone: diagnostic.standalone
+        })
+      }
       return false
     }
   }
@@ -232,6 +303,7 @@ export function useWebPush() {
       } finally {
         localStorage.removeItem(PUSH_ENDPOINT_STORAGE_KEY)
         sessionStorage.removeItem(PUSH_TOAST_SESSION_KEY)
+        lastDiagnostic.value = null
       }
     }
   }
@@ -239,6 +311,8 @@ export function useWebPush() {
   return {
     ensureSubscribed,
     unsubscribeCurrent,
-    getPushSupportMessage
+    getPushSupportMessage,
+    collectDiagnostic,
+    lastDiagnostic
   }
 }

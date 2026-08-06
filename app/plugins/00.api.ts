@@ -7,32 +7,56 @@ import { useAuthStore } from '~/stores/auth.store'
 let isRefreshing = false
 let refreshPromise: Promise<string | null> | null = null
 
-async function refreshAccessToken(apiClient: AxiosInstance): Promise<string | null> {
+type RefreshResult =
+  | { status: 'ok'; accessToken: string }
+  | { status: 'unauthorized' }
+  | { status: 'transient' }
+
+async function refreshAccessToken(apiClient: AxiosInstance): Promise<RefreshResult> {
   if (isRefreshing && refreshPromise) {
-    return refreshPromise
+    try {
+      const token = await refreshPromise
+      return token ? { status: 'ok', accessToken: token } : { status: 'unauthorized' }
+    } catch {
+      return { status: 'transient' }
+    }
   }
 
   isRefreshing = true
   const refreshToken = authTokenService.getRefreshToken()
   if (!refreshToken) {
     isRefreshing = false
-    return null
+    return { status: 'unauthorized' }
   }
+
+  const authStore = useAuthStore()
 
   refreshPromise = apiClient
     .post('/auth/refresh', { refresh_token: refreshToken })
     .then((response) => {
       const tokens = mapAuthTokens(response.data.data)
-      authTokenService.setTokens(tokens)
+      authStore.setAuthenticated(tokens)
       return tokens.accessToken
     })
-    .catch(() => null)
+    .catch((error: AxiosError) => {
+      const status = error.response?.status
+      if (status === 401 || status === 403) {
+        return null
+      }
+      // Timeout / mạng / 5xx: giữ session, để lần sau thử lại.
+      throw error
+    })
     .finally(() => {
       isRefreshing = false
       refreshPromise = null
     })
 
-  return refreshPromise
+  try {
+    const token = await refreshPromise
+    return token ? { status: 'ok', accessToken: token } : { status: 'unauthorized' }
+  } catch {
+    return { status: 'transient' }
+  }
 }
 
 function attachAccessToken(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
@@ -71,13 +95,16 @@ export default defineNuxtPlugin(() => {
         !isAuthRefreshRequest(originalRequest)
       ) {
         originalRequest._retry = true
-        const newAccessToken = await refreshAccessToken(client)
-        if (newAccessToken) {
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+        const refreshResult = await refreshAccessToken(client)
+        if (refreshResult.status === 'ok') {
+          originalRequest.headers.Authorization = `Bearer ${refreshResult.accessToken}`
           return client(originalRequest)
         }
-        authStore.logout()
-        await navigateTo('/login')
+        if (refreshResult.status === 'unauthorized') {
+          authStore.logout()
+          await navigateTo('/login')
+        }
+        // transient: giữ token, không đá login vì mạng/timeout.
       }
 
       return Promise.reject(mapAxiosError(error))
@@ -86,7 +113,8 @@ export default defineNuxtPlugin(() => {
 
   return {
     provide: {
-      apiClient: client
+      apiClient: client,
+      refreshAccessToken: () => refreshAccessToken(client)
     }
   }
 })

@@ -13,7 +13,7 @@ const page = ref(1)
 const enablingPush = ref(false)
 const { data, isLoading, isError, isFetching, refetch } = useNotifications(page)
 const { markReadMutation, markAllReadMutation } = useNotificationMutations()
-const { ensureSubscribed, getPushSupportMessage } = useWebPush()
+const { ensureSubscribed, getPushSupportMessage, collectDiagnostic, lastDiagnostic } = useWebPush()
 
 const notifications = computed(() => data.value?.items ?? [])
 const unreadCount = computed(() => data.value?.unreadCount ?? 0)
@@ -25,6 +25,10 @@ const pushSupportMessage = computed(() => (import.meta.client ? getPushSupportMe
 const browserPermission = computed(() =>
   import.meta.client && typeof Notification !== 'undefined' ? Notification.permission : 'default'
 )
+
+onMounted(() => {
+  void collectDiagnostic()
+})
 
 async function enablePushNotifications() {
   enablingPush.value = true
@@ -111,10 +115,20 @@ function openNotification(notification: Notification) {
       v-else
       class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600"
     >
-      Banner Android chỉ hiện khi thiết bị đã đăng ký vào
-      <code class="rounded bg-white px-1">push_subscriptions</code>.
-      Bấm <span class="font-medium">Bật thông báo đẩy</span>
-      (quyền hiện tại: <span class="font-medium">{{ browserPermission }}</span>) rồi đợi toast thành công.
+      <p>
+        Banner Android chỉ hiện khi thiết bị đã đăng ký vào
+        <code class="rounded bg-white px-1">push_subscriptions</code>.
+        Bấm <span class="font-medium">Bật thông báo đẩy</span>
+        (quyền hiện tại: <span class="font-medium">{{ browserPermission }}</span>) rồi đợi toast thành công.
+      </p>
+      <ul v-if="lastDiagnostic" class="mt-3 space-y-1 font-mono text-xs text-slate-500">
+        <li>permission: {{ lastDiagnostic.permission }}</li>
+        <li>swController: {{ lastDiagnostic.swController }} · swActive: {{ lastDiagnostic.swActive }}</li>
+        <li>browserSub: {{ lastDiagnostic.hasBrowserSubscription }} · standalone: {{ lastDiagnostic.standalone }}</li>
+        <li v-if="lastDiagnostic.swScriptUrl" class="break-all">sw: {{ lastDiagnostic.swScriptUrl }}</li>
+        <li v-if="lastDiagnostic.endpointHint" class="break-all">endpoint…{{ lastDiagnostic.endpointHint }}</li>
+        <li v-if="lastDiagnostic.lastError" class="break-all text-rose-600">error: {{ lastDiagnostic.lastError }}</li>
+      </ul>
     </div>
 
     <AppCard class="space-y-4">
