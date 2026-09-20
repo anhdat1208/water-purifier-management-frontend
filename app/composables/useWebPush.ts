@@ -1,11 +1,12 @@
+import { initializeApp, getApps, type FirebaseApp } from 'firebase/app'
+import { deleteToken, getMessaging, getToken, isSupported, type Messaging } from 'firebase/messaging'
 import { usePushRepository } from '~/repositories/push.repository'
 import { useAppToast } from '~/composables/useAppToast'
 import { useApiError } from '~/composables/useApiError'
 
-const PUSH_ENDPOINT_STORAGE_KEY = 'wp.push.endpoint'
+const PUSH_TOKEN_STORAGE_KEY = 'wp.push.fcmToken'
 const PUSH_TOAST_SESSION_KEY = 'wp.push.subscribedToast'
 const SW_READY_TIMEOUT_MS = 12_000
-const SUBSCRIBE_RETRY_DELAY_MS = 800
 
 export type PushDiagnostic = {
   permission: NotificationPermission | 'unsupported'
@@ -13,29 +14,10 @@ export type PushDiagnostic = {
   swActive: boolean
   swScriptUrl: string | null
   hasBrowserSubscription: boolean
-  endpointHint: string | null
+  tokenHint: string | null
   standalone: boolean
   userAgent: string
   lastError: string | null
-}
-
-function urlBase64ToUint8Array(base64String: string): BufferSource {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const raw = atob(base64)
-  const bytes = new Uint8Array(raw.length)
-  for (let index = 0; index < raw.length; index += 1) {
-    bytes[index] = raw.charCodeAt(index)
-  }
-  return bytes
-}
-
-function arrayBufferToBase64(value: ArrayBuffer | null): string | null {
-  if (!value) {
-    return null
-  }
-
-  return btoa(String.fromCharCode(...new Uint8Array(value)))
 }
 
 function delay(ms: number): Promise<void> {
@@ -49,7 +31,7 @@ function isPushServiceError(error: unknown): boolean {
     return false
   }
   const message = error.message.toLowerCase()
-  return message.includes('push service') || message.includes('registration failed')
+  return message.includes('push service') || message.includes('registration failed') || message.includes('messaging')
 }
 
 function formatPushError(error: unknown): string {
@@ -86,7 +68,7 @@ async function waitForServiceWorkerRegistration(): Promise<ServiceWorkerRegistra
       if (!registration?.active) {
         throw error
       }
-      console.warn('[web-push] No SW controller yet; continuing with active worker.', error)
+      console.warn('[fcm] No SW controller yet; continuing with active worker.', error)
       return registration
     }
   }
@@ -100,31 +82,9 @@ async function waitForServiceWorkerRegistration(): Promise<ServiceWorkerRegistra
   return registration
 }
 
-async function subscribePush(
-  registration: ServiceWorkerRegistration,
-  applicationServerKey: BufferSource
-): Promise<PushSubscription> {
-  try {
-    return await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey
-    })
-  } catch (error) {
-    if (!isPushServiceError(error)) {
-      throw error
-    }
-
-    await delay(SUBSCRIBE_RETRY_DELAY_MS)
-    return registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey
-    })
-  }
-}
-
 function getErrorMessage(error: unknown): string {
   if (isPushServiceError(error)) {
-    return 'Trình duyệt không kết nối được dịch vụ đẩy (FCM). Hãy mở bằng Chrome, kiểm tra mạng/Google Play Services, tải lại trang rồi thử lại.'
+    return 'Trình duyệt không kết nối được Firebase Cloud Messaging. Hãy mở bằng Chrome, kiểm tra mạng, tải lại trang rồi thử lại.'
   }
   if (error instanceof Error && error.message) {
     return error.message
@@ -139,11 +99,45 @@ function emptyDiagnostic(lastError: string | null = null): PushDiagnostic {
     swActive: false,
     swScriptUrl: null,
     hasBrowserSubscription: false,
-    endpointHint: null,
+    tokenHint: null,
     standalone: false,
     userAgent: import.meta.client ? navigator.userAgent : '',
     lastError
   }
+}
+
+function getFirebaseConfig(config: ReturnType<typeof useRuntimeConfig>) {
+  return {
+    apiKey: String(config.public.firebaseApiKey || ''),
+    authDomain: String(config.public.firebaseAuthDomain || ''),
+    projectId: String(config.public.firebaseProjectId || ''),
+    messagingSenderId: String(config.public.firebaseMessagingSenderId || ''),
+    appId: String(config.public.firebaseAppId || '')
+  }
+}
+
+function isFirebaseConfigured(config: ReturnType<typeof useRuntimeConfig>): boolean {
+  const firebase = getFirebaseConfig(config)
+  return Boolean(
+    firebase.apiKey &&
+      firebase.authDomain &&
+      firebase.projectId &&
+      firebase.messagingSenderId &&
+      firebase.appId &&
+      config.public.firebaseVapidKey
+  )
+}
+
+function getFirebaseApp(config: ReturnType<typeof useRuntimeConfig>): FirebaseApp {
+  const existing = getApps()[0]
+  if (existing) {
+    return existing
+  }
+  return initializeApp(getFirebaseConfig(config))
+}
+
+function getFirebaseMessaging(config: ReturnType<typeof useRuntimeConfig>): Messaging {
+  return getMessaging(getFirebaseApp(config))
 }
 
 export function useWebPush() {
@@ -160,11 +154,11 @@ export function useWebPush() {
     if (config.public.useMockApi) {
       return 'Mock API đang bật — không đăng ký push thật.'
     }
+    if (!isFirebaseConfigured(config)) {
+      return 'Firebase Web chưa được cấu hình (NUXT_PUBLIC_FIREBASE_*).'
+    }
     if (typeof Notification === 'undefined') {
       return 'Trình duyệt không hỗ trợ Notification API.'
-    }
-    if (typeof PushManager === 'undefined') {
-      return 'Trình duyệt không hỗ trợ Web Push (PushManager).'
     }
     if (!navigator.serviceWorker) {
       return 'Trình duyệt không hỗ trợ Service Worker (cần HTTPS hoặc localhost).'
@@ -183,7 +177,7 @@ export function useWebPush() {
     }
 
     const registration = await navigator.serviceWorker.getRegistration()
-    const subscription = registration ? await registration.pushManager.getSubscription() : null
+    const storedToken = localStorage.getItem(PUSH_TOKEN_STORAGE_KEY)
     const displayModeStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       ('standalone' in navigator && Boolean((navigator as { standalone?: boolean }).standalone))
@@ -193,27 +187,21 @@ export function useWebPush() {
       swController: Boolean(navigator.serviceWorker.controller),
       swActive: Boolean(registration?.active),
       swScriptUrl: registration?.active?.scriptURL ?? null,
-      hasBrowserSubscription: Boolean(subscription),
-      endpointHint: subscription?.endpoint ? subscription.endpoint.slice(-48) : null,
+      hasBrowserSubscription: Boolean(storedToken),
+      tokenHint: storedToken ? storedToken.slice(-48) : null,
       standalone: displayModeStandalone,
       userAgent: navigator.userAgent,
       lastError
     }
     lastDiagnostic.value = diagnostic
-    console.info('[web-push] diagnostic', diagnostic)
+    console.info('[fcm] diagnostic', diagnostic)
     return diagnostic
   }
 
   async function ensureSubscribed(options?: { interactive?: boolean }): Promise<boolean> {
     const interactive = options?.interactive ?? false
 
-    if (
-      config.public.useMockApi ||
-      !import.meta.client ||
-      typeof Notification === 'undefined' ||
-      typeof PushManager === 'undefined' ||
-      !navigator.serviceWorker
-    ) {
+    if (config.public.useMockApi || !import.meta.client || typeof Notification === 'undefined' || !navigator.serviceWorker) {
       if (interactive) {
         toast.error(getPushSupportMessage() ?? 'Thiết bị không hỗ trợ thông báo đẩy.')
       }
@@ -221,7 +209,25 @@ export function useWebPush() {
       return false
     }
 
+    if (!isFirebaseConfigured(config)) {
+      if (interactive) {
+        toast.error(getPushSupportMessage() ?? 'Firebase chưa cấu hình.')
+      }
+      await collectDiagnostic(getPushSupportMessage())
+      return false
+    }
+
     try {
+      const messagingSupported = await isSupported()
+      if (!messagingSupported) {
+        const message = 'Trình duyệt này không hỗ trợ Firebase Cloud Messaging.'
+        if (interactive) {
+          toast.error(message)
+        }
+        await collectDiagnostic(message)
+        return false
+      }
+
       const permission =
         Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission
 
@@ -234,30 +240,36 @@ export function useWebPush() {
       }
 
       const registration = await waitForServiceWorkerRegistration()
-      const publicKey = await repository.getVapidPublicKey()
-      if (!publicKey?.trim()) {
-        throw new Error('VAPID public key trống.')
+      const messaging = getFirebaseMessaging(config)
+      const vapidKey = String(config.public.firebaseVapidKey || '').trim()
+
+      let token: string | null = null
+      try {
+        token = await getToken(messaging, {
+          vapidKey,
+          serviceWorkerRegistration: registration
+        })
+      } catch (error) {
+        if (!isPushServiceError(error)) {
+          throw error
+        }
+        await delay(800)
+        token = await getToken(messaging, {
+          vapidKey,
+          serviceWorkerRegistration: registration
+        })
       }
 
-      let subscription = await registration.pushManager.getSubscription()
-      if (!subscription) {
-        subscription = await subscribePush(registration, urlBase64ToUint8Array(publicKey.trim()))
-      }
-
-      const p256dh = arrayBufferToBase64(subscription.getKey('p256dh'))
-      const auth = arrayBufferToBase64(subscription.getKey('auth'))
-
-      if (!p256dh || !auth) {
-        throw new Error('Không đọc được khóa push subscription.')
+      if (!token) {
+        throw new Error('Không lấy được FCM registration token.')
       }
 
       await repository.subscribe({
-        endpoint: subscription.endpoint,
-        keys: { p256dh, auth },
+        token,
         user_agent: navigator.userAgent
       })
 
-      localStorage.setItem(PUSH_ENDPOINT_STORAGE_KEY, subscription.endpoint)
+      localStorage.setItem(PUSH_TOKEN_STORAGE_KEY, token)
 
       await collectDiagnostic(null)
 
@@ -267,12 +279,12 @@ export function useWebPush() {
       }
       return true
     } catch (error) {
-      console.warn('[web-push] ensureSubscribed failed:', error)
+      console.warn('[fcm] ensureSubscribed failed:', error)
       const diagnostic = await collectDiagnostic(formatPushError(error))
       const detail = getApiErrorMessage(error, getErrorMessage(error))
       toast.error(`Không đăng ký được thông báo đẩy: ${detail}`)
       if (interactive) {
-        console.warn('[web-push] fail context', {
+        console.warn('[fcm] fail context', {
           swController: diagnostic.swController,
           swActive: diagnostic.swActive,
           hasBrowserSubscription: diagnostic.hasBrowserSubscription,
@@ -288,20 +300,20 @@ export function useWebPush() {
       return
     }
 
-    const endpoint = localStorage.getItem(PUSH_ENDPOINT_STORAGE_KEY)
+    const token = localStorage.getItem(PUSH_TOKEN_STORAGE_KEY)
     try {
-      if (endpoint) {
-        await repository.unsubscribe(endpoint)
+      if (token) {
+        await repository.unsubscribe(token)
       }
     } finally {
       try {
-        const registration = await navigator.serviceWorker.ready
-        const subscription = await registration.pushManager.getSubscription()
-        await subscription?.unsubscribe()
+        if (isFirebaseConfigured(config) && (await isSupported())) {
+          await deleteToken(getFirebaseMessaging(config))
+        }
       } catch {
-        // Không để lỗi Push API làm gián đoạn luồng đăng xuất.
+        // Không để lỗi FCM làm gián đoạn luồng đăng xuất.
       } finally {
-        localStorage.removeItem(PUSH_ENDPOINT_STORAGE_KEY)
+        localStorage.removeItem(PUSH_TOKEN_STORAGE_KEY)
         sessionStorage.removeItem(PUSH_TOAST_SESSION_KEY)
         lastDiagnostic.value = null
       }
