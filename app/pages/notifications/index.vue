@@ -126,7 +126,7 @@ function openNotification(notification: Notification) {
         <li>swController: {{ lastDiagnostic.swController }} · swActive: {{ lastDiagnostic.swActive }}</li>
         <li>browserSub: {{ lastDiagnostic.hasBrowserSubscription }} · standalone: {{ lastDiagnostic.standalone }}</li>
         <li v-if="lastDiagnostic.swScriptUrl" class="break-all">sw: {{ lastDiagnostic.swScriptUrl }}</li>
-        <li v-if="lastDiagnostic.endpointHint" class="break-all">endpoint…{{ lastDiagnostic.endpointHint }}</li>
+        <li v-if="lastDiagnostic.tokenHint" class="break-all">token…{{ lastDiagnostic.tokenHint }}</li>
         <li v-if="lastDiagnostic.lastError" class="break-all text-rose-600">error: {{ lastDiagnostic.lastError }}</li>
       </ul>
     </div>
